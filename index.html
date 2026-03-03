@@ -13,7 +13,6 @@
     --paper: #f5f0e8;
     --cream: #ede7d9;
     --gold: #b8860b;
-    --gold-light: #d4a017;
     --rust: #8b3a2a;
     --muted: #7a7060;
     --border: #ccc3b0;
@@ -173,7 +172,7 @@
   }
 
   .generate-btn.loading .spinner { display: block; }
-  .generate-btn.loading .btn-text::after { content: '…'; }
+  .generate-btn.loading .btn-text::after { content: '...'; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .output-panel {
@@ -247,19 +246,6 @@
   }
 
   .empty-icon { font-size: 2.5rem; opacity: 0.3; }
-  .output-body.streaming { animation: fadeIn 0.3s ease; }
-  @keyframes fadeIn { from { opacity: 0.4; } to { opacity: 1; } }
-
-  .cursor {
-    display: inline-block;
-    width: 2px; height: 1em;
-    background: var(--gold);
-    vertical-align: middle;
-    margin-left: 2px;
-    animation: blink 1s step-end infinite;
-  }
-
-  @keyframes blink { 50% { opacity: 0; } }
 
   .word-count {
     padding: 0.6rem 1rem;
@@ -303,17 +289,17 @@
   <div class="panel">
     <div class="field-group">
       <div class="section-label">Job Description</div>
-      <textarea id="jobDesc" rows="7" placeholder="Paste the full job posting or key requirements…"></textarea>
+      <textarea id="jobDesc" rows="7" placeholder="Paste the full job posting or key requirements..."></textarea>
     </div>
     <div class="field-group">
       <div class="section-label">Your Background</div>
-      <textarea id="resume" rows="6" placeholder="Paste your resume highlights, key skills, notable achievements…"></textarea>
+      <textarea id="resume" rows="6" placeholder="Paste your resume highlights, key skills, notable achievements..."></textarea>
     </div>
     <div class="field-group">
       <div class="section-label">Your Name</div>
       <input type="text" id="name" placeholder="e.g. Maria Santos">
     </div>
-    <div class="ornament">· · ·</div>
+    <div class="ornament">. . .</div>
     <div class="controls-row">
       <div class="control-group">
         <div class="section-label">Tone</div>
@@ -329,7 +315,7 @@
         <div class="section-label">Length</div>
         <select id="length">
           <option value="concise (under 200 words)">Short</option>
-          <option value="standard (250–350 words)" selected>Standard</option>
+          <option value="standard (250-350 words)" selected>Standard</option>
           <option value="detailed (400+ words)">Detailed</option>
         </select>
       </div>
@@ -360,7 +346,7 @@
 </main>
 
 <script>
-  let isStreaming = false;
+  let isGenerating = false;
 
   async function generate() {
     const jobDesc = document.getElementById('jobDesc').value.trim();
@@ -378,22 +364,22 @@
       return;
     }
 
-    if (isStreaming) return;
-    isStreaming = true;
+    if (isGenerating) return;
+    isGenerating = true;
 
     const btn = document.getElementById('generateBtn');
     btn.classList.add('loading');
     btn.disabled = true;
 
     const output = document.getElementById('output');
-    output.className = 'output-body streaming';
-    output.innerHTML = '<span class="cursor"></span>';
+    output.className = 'output-body empty';
+    output.innerHTML = '<div class="empty-icon">✦</div><div>Generating...</div>';
     document.getElementById('wordCount').textContent = '';
-    document.getElementById('outputLabel').textContent = 'Generating…';
+    document.getElementById('outputLabel').textContent = 'Generating...';
 
-    const systemPrompt = `You are an expert cover letter writer known for crafting letters that feel human, specific, and compelling — never generic. Write letters that hiring managers actually want to read. Do not use filler phrases like "I am writing to express my interest" or "I believe I would be a great fit." Start with a strong, specific opening. Keep the tone ${tone} and the length ${length}. Sign off naturally. Output only the cover letter text — no commentary, no subject lines.`;
+    const systemPrompt = 'You are an expert cover letter writer known for crafting letters that feel human, specific, and compelling — never generic. Write letters that hiring managers actually want to read. Do not use filler phrases like "I am writing to express my interest" or "I believe I would be a great fit." Start with a strong, specific opening. Keep the tone ' + tone + ' and the length ' + length + '. Sign off naturally. Output only the cover letter text — no commentary, no subject lines.';
 
-    const userPrompt = `Write a cover letter for the following:\n\nJob Description:\n${jobDesc}\n\nApplicant Background:\n${resume}\n\n${name ? `Applicant Name: ${name}` : ''}\n\nWrite a compelling, tailored cover letter.`;
+    const userPrompt = 'Write a cover letter for the following:\n\nJob Description:\n' + jobDesc + '\n\nApplicant Background:\n' + resume + '\n\n' + (name ? 'Applicant Name: ' + name : '') + '\n\nWrite a compelling, tailored cover letter.';
 
     try {
       const response = await fetch('/api/generate', {
@@ -402,63 +388,39 @@
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1000,
-          stream: true,
+          stream: false,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }]
         })
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error?.message || 'API error');
+        throw new Error(data.error && data.error.message ? data.error.message : 'API error');
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6);
-            if (data === '[DONE]') continue;
-            try {
-              const parsed = JSON.parse(data);
-              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-                fullText += parsed.delta.text;
-                output.innerHTML = escapeHtml(fullText) + '<span class="cursor"></span>';
-                output.scrollTop = output.scrollHeight;
-              }
-            } catch {}
-          }
-        }
-      }
+      const fullText = data.content[0].text;
 
       output.innerHTML = escapeHtml(fullText);
       output.className = 'output-body';
       document.getElementById('outputLabel').textContent = 'Cover Letter';
       const wc = fullText.trim().split(/\s+/).length;
-      document.getElementById('wordCount').textContent = `${wc} words`;
+      document.getElementById('wordCount').textContent = wc + ' words';
 
     } catch (err) {
       output.className = 'output-body empty';
-      output.innerHTML = `<div class="empty-icon">⚠</div><div style="color:#8b3a2a">${err.message}</div>`;
+      output.innerHTML = '<div class="empty-icon">!</div><div style="color:#8b3a2a">' + err.message + '</div>';
       document.getElementById('outputLabel').textContent = 'Error';
     } finally {
       btn.classList.remove('loading');
       btn.disabled = false;
-      isStreaming = false;
+      isGenerating = false;
     }
   }
 
   function escapeHtml(text) {
-    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   async function copyText() {
@@ -469,7 +431,7 @@
     const btn = document.getElementById('copyBtn');
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
   }
 
   function clearOutput() {

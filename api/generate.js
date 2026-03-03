@@ -3,22 +3,35 @@ export const config = { runtime: 'edge' };
 export default async function handler(req) {
   const body = await req.json();
 
-  const nonStreamBody = { ...body, stream: false };
+  const geminiBody = {
+    contents: [
+      {
+        parts: [
+          {
+            text: (body.system ? body.system + '\n\n' : '') + body.messages[0].content
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      maxOutputTokens: 1000
+    }
+  };
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify(nonStreamBody)
-  });
+  const response = await fetch(
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + process.env.GEMINI_API_KEY,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiBody)
+    }
+  );
 
   const data = await response.json();
 
-  return new Response(JSON.stringify(data), {
-    status: response.status,
+  const text = data.candidates[0].content.parts[0].text;
+
+  return new Response(JSON.stringify({ content: [{ text: text }] }), {
     headers: { 'Content-Type': 'application/json' }
   });
 }

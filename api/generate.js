@@ -8,12 +8,20 @@ export default async function handler(req) {
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'messages-2023-06-01'
     },
     body: JSON.stringify(body)
   });
 
-  return new Response(response.body, {
-    headers: { 'Content-Type': 'text/event-stream' }
+  const { readable, writable } = new TransformStream();
+  response.body.pipeTo(writable);
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive'
+    }
   });
 }

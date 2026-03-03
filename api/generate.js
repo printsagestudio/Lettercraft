@@ -29,9 +29,7 @@ export default async function handler(req) {
 
   const data = await response.json();
 
-  const text = data.candidates[0].content.parts[0].text;
-
-  return new Response(JSON.stringify({ content: [{ text: text }] }), {
+  return new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' }
   });
 }

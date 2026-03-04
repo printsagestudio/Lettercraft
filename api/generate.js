@@ -3,11 +3,14 @@ export const config = { runtime: 'edge' };
 export default async function handler(req) {
   const body = await req.json();
 
+  const strictSystem = 'You are a cover letter writer. Your ONLY job is to write a cover letter using EXCLUSIVELY the information provided by the user. STRICT RULES: 1) Never invent, assume, or add any experience, skills, achievements, or details that are not explicitly stated in the user input. 2) If information is not provided, do not fill it in. 3) Only use what the user gives you — nothing more. 4) Do not use filler phrases like "I am writing to express my interest" or "I believe I would be a great fit." 5) Output only the cover letter text, no commentary.';
+
   const groqBody = {
     model: 'llama-3.3-70b-versatile',
     max_tokens: 1000,
+    temperature: 0.3,
     messages: [
-      { role: 'system', content: body.system || '' },
+      { role: 'system', content: strictSystem },
       { role: 'user', content: body.messages[0].content }
     ]
   };
